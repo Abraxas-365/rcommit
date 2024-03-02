@@ -11,10 +11,30 @@ use langchain_rust::{prompt_args, template_jinja2};
 
 #[tokio::main] // This attribute makes your main function asynchronous
 async fn main() -> io::Result<()> {
-    let matches = App::new("rcommit")
+    let matches = initialize_command_line_interface();
+    let context = matches.value_of("context").unwrap_or("no context");
+    let model = parse_model_argument(matches.value_of("model").unwrap_or("gpt3.5"));
+    let exclude_patterns = matches
+        .values_of("exclude")
+        .unwrap_or_default()
+        .collect::<Vec<&str>>();
+    let git_diff_output = execute_git_diff_command(&exclude_patterns)?;
+    let commit_message = generate_commit_message(&git_diff_output, &context, model).await;
+    let formatter = format!("git commit -m \"{}\"", commit_message.replace("\"", "\\\""));
+    if matches.is_present("git") {
+        copy_to_clipboard(&formatter).expect("Could not copy to clipboard");
+    } else {
+        copy_to_clipboard(&commit_message).expect("Could not copy to clipboard");
+    }
+
+    Ok(())
+}
+
+fn initialize_command_line_interface() -> clap::ArgMatches {
+    App::new("rcommit")
         .version("0.1.0")
         .author("Luis Fernando Miranda")
-        .about("Auses AI to Write Commit messages")
+        .about("Uses AI to write commit messages")
         .arg(
             Arg::new("context")
                 .short('c')
@@ -40,21 +60,26 @@ async fn main() -> io::Result<()> {
                 .default_value("gpt4")
                 .help("Specifies the OpenAI model to use"),
         )
-        .get_matches();
+        .arg(
+            Arg::new("git")
+                .short('g')
+                .long("git")
+                .takes_value(false)
+                .help("Saves the formatted commit message to the clipboard"),
+        )
+        .get_matches()
+}
 
-    let context = matches.value_of("context").unwrap_or("no context");
-    let model_arg = matches.value_of("model").unwrap_or("gpt3.5");
-    let model = match model_arg {
+fn parse_model_argument(model_arg: &str) -> OpenAIModel {
+    match model_arg {
         "gpt3.5" => OpenAIModel::Gpt35,
         "gpt4" => OpenAIModel::Gpt4,
         "gpt4-turbo" => OpenAIModel::Gpt4Turbo,
-        _ => panic!("Invalid model specified"), // This should never happen due to clap's possible_values constraint
-    };
-    let excludes = matches
-        .values_of("exclude")
-        .unwrap_or_default()
-        .collect::<Vec<&str>>();
+        _ => unreachable!("Invalid model specified"), // clap's possible_values constraint prevents reaching here
+    }
+}
 
+fn execute_git_diff_command(excludes: &[&str]) -> io::Result<String> {
     let exclude_pattern = excludes.iter().fold(String::new(), |acc, &file| {
         if acc.is_empty() {
             format!("grep -vE '^{}$'", file)
@@ -71,26 +96,6 @@ async fn main() -> io::Result<()> {
             exclude_pattern
         )
     };
-    let llm = OpenAI::default().with_model(model);
-    let chain = LLMChainBuilder::new()
-        .prompt(HumanMessagePromptTemplate::new(template_jinja2!(
-            r#"
-    Create a conventional commit message for the following changes.
-
-    Some context about the changes: {{context}}
-
-    File changes: 
-        {{input}}
-
-
-
-    "#,
-            "input",
-            "context"
-        )))
-        .llm(llm)
-        .build()
-        .expect("Failed to build LLMChain");
 
     let output = Command::new("sh")
         .arg("-c")
@@ -101,23 +106,44 @@ async fn main() -> io::Result<()> {
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Could not capture stdout."))?;
 
     let reader = io::BufReader::new(output);
-
-    let complete_changes = reader
+    reader
         .lines()
-        .map(|line| line.unwrap())
-        .collect::<Vec<String>>()
-        .join("\n");
+        .collect::<Result<Vec<String>, _>>()
+        .map(|lines| lines.join("\n"))
+}
 
-    let res = chain
+async fn generate_commit_message(
+    git_diff_output: &str,
+    context: &str,
+    model: OpenAIModel,
+) -> String {
+    let llm = OpenAI::default().with_model(model);
+    let chain = LLMChainBuilder::new()
+        .prompt(HumanMessagePromptTemplate::new(template_jinja2!(
+            r#"
+    Create a conventional commit message for the following changes.
+    Some context about the changes: {{context}}
+    File changes: 
+        {{input}}
+    "#,
+            "input",
+            "context"
+        )))
+        .llm(llm)
+        .build()
+        .expect("Could not build LLM chain");
+
+    chain
         .invoke(prompt_args! {
-            "input"=>complete_changes,
-            "context"=>context
+            "input" => git_diff_output,
+            "context" => context
         })
         .await
-        .expect("Failed to invoke chain");
+        .expect("Error invoking LLMChain")
+}
 
-    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
-    ctx.set_contents(res).unwrap();
-
+fn copy_to_clipboard(text: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut ctx: ClipboardContext = ClipboardProvider::new()?;
+    ctx.set_contents(text.to_owned())?;
     Ok(())
 }
