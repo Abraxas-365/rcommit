@@ -43,7 +43,8 @@ cargo build --release
 
 -c, --context: Sets a custom context for the commit message.
 -e, --exclude: List of files to exclude from the git diff.
+-m, --model: Specifies the OpenAI model to be used for generating the commit message,default is gpt3.5 if not specified. The available options are gpt3.5, gpt4, and gpt4-turbo.
 
 ```bash
-./target/release/rcommit -c "Feature addition" -e "README.md" "LICENSE"
+./target/release/rcommit -c "Feature addition" -e "README.md" "LICENSE" -m "gpt4"
 ```

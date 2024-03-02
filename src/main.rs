@@ -30,9 +30,25 @@ async fn main() -> io::Result<()> {
                 .multiple_values(true)
                 .help("List of files to exclude from the git diff"),
         )
+        .arg(
+            Arg::new("model")
+                .short('m')
+                .long("model")
+                .takes_value(true)
+                .possible_values(&["gpt3.5", "gpt4", "gpt4-turbo"])
+                .default_value("gpt4")
+                .help("Specifies the OpenAI model to use"),
+        )
         .get_matches();
 
     let context = matches.value_of("context").unwrap_or("no context");
+    let model_arg = matches.value_of("model").unwrap_or("gpt3.5");
+    let model = match model_arg {
+        "gpt3.5" => OpenAIModel::Gpt35,
+        "gpt4" => OpenAIModel::Gpt4,
+        "gpt4-turbo" => OpenAIModel::Gpt4Turbo,
+        _ => panic!("Invalid model specified"), // This should never happen due to clap's possible_values constraint
+    };
     let excludes = matches
         .values_of("exclude")
         .unwrap_or_default()
@@ -54,7 +70,7 @@ async fn main() -> io::Result<()> {
             exclude_pattern
         )
     };
-    let llm = OpenAI::default().with_model(OpenAIModel::Gpt35);
+    let llm = OpenAI::default().with_model(model);
     let chain = LLMChainBuilder::new()
         .prompt(message_formatter!(fmt_template!(
             HumanMessagePromptTemplate::new(template_jinja2!(
