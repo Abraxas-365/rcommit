@@ -2,6 +2,7 @@ use std::io::{self, BufRead};
 use std::process::{Command, Stdio};
 
 use clap::{App, Arg};
+use clipboard::{ClipboardContext, ClipboardProvider};
 use langchain_rust::chain::chain_trait::Chain;
 use langchain_rust::chain::llm_chain::LLMChainBuilder;
 use langchain_rust::llm::openai::{OpenAI, OpenAIModel};
@@ -117,7 +118,9 @@ async fn main() -> io::Result<()> {
         .await
         .expect("Failed to invoke chain");
 
-    println!("git commit -m \"{}\"", res.replace("\"", "\\\""));
+    let commit_message = format!("git commit -m \"{}\"", res.replace("\"", "\\\""));
+    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+    ctx.set_contents(commit_message).unwrap();
 
     Ok(())
 }
