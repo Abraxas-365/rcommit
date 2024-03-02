@@ -1,0 +1,13 @@
+[package]
+name = "rcommit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+langchain-rust = "1.0.8"
+serde = "1.0.197"
+serde_json = "1.0.114"
+tokio = "1.36.0"
+clap = "3"
