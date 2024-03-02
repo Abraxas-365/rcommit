@@ -57,7 +57,7 @@ fn initialize_command_line_interface() -> clap::ArgMatches {
                 .long("model")
                 .takes_value(true)
                 .possible_values(&["gpt3.5", "gpt4", "gpt4-turbo"])
-                .default_value("gpt4")
+                .default_value("gpt3.5")
                 .help("Specifies the OpenAI model to use"),
         )
         .arg(
