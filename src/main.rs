@@ -7,7 +7,7 @@ use langchain_rust::chain::chain_trait::Chain;
 use langchain_rust::chain::llm_chain::LLMChainBuilder;
 use langchain_rust::llm::openai::{OpenAI, OpenAIModel};
 use langchain_rust::prompt::HumanMessagePromptTemplate;
-use langchain_rust::{fmt_template, message_formatter, prompt_args, template_jinja2};
+use langchain_rust::{prompt_args, template_jinja2};
 
 #[tokio::main] // This attribute makes your main function asynchronous
 async fn main() -> io::Result<()> {
@@ -73,9 +73,8 @@ async fn main() -> io::Result<()> {
     };
     let llm = OpenAI::default().with_model(model);
     let chain = LLMChainBuilder::new()
-        .prompt(message_formatter!(fmt_template!(
-            HumanMessagePromptTemplate::new(template_jinja2!(
-                r#"
+        .prompt(HumanMessagePromptTemplate::new(template_jinja2!(
+            r#"
     Create a conventional commit message for the following changes.
 
     Some context about the changes: {{context}}
@@ -86,9 +85,8 @@ async fn main() -> io::Result<()> {
 
 
     "#,
-                "input",
-                "context"
-            ))
+            "input",
+            "context"
         )))
         .llm(llm)
         .build()
