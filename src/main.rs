@@ -118,7 +118,7 @@ async fn main() -> io::Result<()> {
         .await
         .expect("Failed to invoke chain");
 
-    let commit_message = format!("git commit -m \"{}\"", res.replace("\"", "\\\""));
+    let commit_message = format!("\"{}\"", res.replace("\"", "\\\""));
     let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
     ctx.set_contents(commit_message).unwrap();
 
